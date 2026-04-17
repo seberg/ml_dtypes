@@ -155,8 +155,29 @@ struct CustomFloatType {
   static PyType_Spec type_spec;
   static PyType_Slot type_slots[];
   static PyArray_ArrFuncs arr_funcs;
+  static PyArray_DescrProto npy_descr_proto;
   static PyArray_Descr* npy_descr;
+
+  // New-style DType metaclass object.  Zero-initialized; fields are filled in
+  // at registration time before PyType_Ready is called.
+  static PyArray_DTypeMeta dtype_meta;
 };
+
+// True if `meta` is one of our custom floating-point DTypes.
+inline bool IsCustomFloatDType(const PyArray_DTypeMeta* meta) {
+  return meta == &CustomFloatType<bfloat16>::dtype_meta ||
+         meta == &CustomFloatType<float8_e3m4>::dtype_meta ||
+         meta == &CustomFloatType<float8_e4m3>::dtype_meta ||
+         meta == &CustomFloatType<float8_e4m3b11fnuz>::dtype_meta ||
+         meta == &CustomFloatType<float8_e4m3fn>::dtype_meta ||
+         meta == &CustomFloatType<float8_e4m3fnuz>::dtype_meta ||
+         meta == &CustomFloatType<float8_e5m2>::dtype_meta ||
+         meta == &CustomFloatType<float8_e5m2fnuz>::dtype_meta ||
+         meta == &CustomFloatType<float6_e2m3fn>::dtype_meta ||
+         meta == &CustomFloatType<float6_e3m2fn>::dtype_meta ||
+         meta == &CustomFloatType<float4_e2m1fn>::dtype_meta ||
+         meta == &CustomFloatType<float8_e8m0fnu>::dtype_meta;
+}
 
 template <typename T>
 struct DtypeTraits<T, std::enable_if_t<is_custom_float_v<T>>> {
