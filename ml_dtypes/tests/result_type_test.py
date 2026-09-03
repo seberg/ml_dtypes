@@ -63,6 +63,7 @@ def rt(a, b):
     (f8_e4m3fn, np.float16, np.float16),      # float8 fits in float16
     (f8_e5m2,   np.float16, np.float16),      # float8 fits in float16
     (bf16,      np.float16, np.float32),      # incomparable → float32
+    (f8_e8m0,   np.float16, np.float32),      # e8m0 range exceeds float16
     (f8_e4m3fn, np.float32, np.float32),      # all custom floats fit in float32
     (bf16,      np.float32, np.float32),
     (bf16,      np.float64, np.float64),
@@ -102,12 +103,20 @@ def test_custom_float_vs_numpy(a, b, expected):
     # ---- incomparable: one has more exp, other more mantissa → float32 ----
     (bf16,      f8_e5m2,   bf16),             # f8_e5m2 fits in bf16 (bf16 > in all dims)
     (f8_e4m3fn, f8_e5m2,   np.float32),       # e4m3 has more mantissa, e5m2 has more exp
-    (f8_e4m3fn, f8_e4m3fnuz, f8_e4m3fn),      # same digits/max_exp → numeric_limits match; fn wins
+    (f8_e4m3,   f8_e4m3fn, np.float32),       # infinity vs wider finite range
+    (f8_e4m3,   f8_e4m3fnuz, np.float32),     # infinity vs wider lower range
+    (f8_e4m3fn, f8_e4m3fnuz, np.float32),     # wider upper vs wider lower range
+    (f8_e5m2,   f8_e5m2fnuz, np.float32),     # equal digits/max_exp, neither contains the other
     (f6_e2m3,   f6_e3m2,   np.float32),       # one has more mantissa, other more exp
 ])
 def test_custom_float_vs_custom_float(a, b, expected):
   assert rt(a, b) == np.dtype(expected)
   assert rt(b, a) == np.dtype(expected)  # must be symmetric
+
+
+@pytest.mark.parametrize("a, b", itertools.combinations(ALL_CUSTOM_FLOATS, 2))
+def test_custom_float_commutativity(a, b):
+  assert rt(a, b) == rt(b, a)
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +150,6 @@ def test_custom_float_beats_custom_int(float_t, int_t):
     (i4,  np.int8,    np.int8),
     (i4,  np.int16,   np.int16),
     (i4,  np.int32,   np.int32),
-    (i4,  np.uint8,   np.uint8),
     (u4,  np.int8,    np.int8),
     (i2,  np.int8,    np.int8),
     (i4,  np.float16, np.float16),
@@ -154,6 +162,18 @@ def test_custom_float_beats_custom_int(float_t, int_t):
 def test_custom_int_vs_numpy(a, b, expected):
   assert rt(a, b) == np.dtype(expected)
   assert rt(b, a) == np.dtype(expected)  # must be symmetric
+
+
+@pytest.mark.parametrize("signed_int", [i1, i2, i4])
+@pytest.mark.parametrize("unsigned_builtin, expected", [
+    (np.uint8,  np.int16),
+    (np.uint16, np.int32),
+    (np.uint32, np.int64),
+    (np.uint64, np.float64),
+])
+def test_signed_intn_vs_unsigned_builtins(signed_int, unsigned_builtin, expected):
+  assert rt(signed_int, unsigned_builtin) == np.dtype(expected)
+  assert rt(unsigned_builtin, signed_int) == np.dtype(expected)
 
 
 # ---------------------------------------------------------------------------
@@ -183,17 +203,25 @@ def test_custom_int_vs_custom_int(a, b, expected):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("a, b, expected", [
-    # ---- bool + integers: wrap in cfloat ----
-    (bc32, np.bool_,   np.complex64),
+    # ---- bool: stay in the custom complex ----
+    (bc32, np.bool_,   bc32),
+    (c32,  np.bool_,   c32),
+    # ---- integers: follow NumPy's integer + complex64 promotion ----
     (bc32, np.int8,    np.complex64),
-    (bc32, np.int32,   np.complex64),
-    (c32,  np.bool_,   np.complex64),
     (c32,  np.int8,    np.complex64),
-    # ---- floats ≤ float32: wrap in cfloat ----
+    (bc32, np.int32,   np.complex128),
+    (bc32, np.uint32,  np.complex128),
+    (c32,  np.int32,   np.complex128),
+    (c32,  np.uint32,  np.complex128),
+    (bc32, np.int64,   np.complex128),
+    (bc32, np.uint64,  np.complex128),
+    (c32,  np.int64,   np.complex128),
+    (c32,  np.uint64,  np.complex128),
+    # ---- floats ≤ float32: wrap in cfloat, except a matching component type ----
     (bc32, np.float16, np.complex64),
     (bc32, np.float32, np.complex64),
-    (c32,  np.float16, np.complex64),
     (c32,  np.float32, np.complex64),
+    (c32,  np.float16, c32),
     # ---- float64+: need cdouble ----
     (bc32, np.float64,    np.complex128),
     (bc32, np.longdouble, np.clongdouble),
@@ -214,18 +242,14 @@ def test_custom_complex_vs_numpy(a, b, expected):
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("a, b, expected", [
-    # ---- custom floats: all fit in cfloat alongside our complex ----
-    (bc32, bf16,      np.complex64),
-    (bc32, f8_e4m3fn, np.complex64),
-    (bc32, f8_e5m2,   np.complex64),
-    (bc32, f4,        np.complex64),
+    (bc32, bf16,      bc32),
+    (bc32, f4,        bc32),
+    (bc32, f8_e4m3fn, bc32),
+    (bc32, f8_e5m2,   bc32),
+    (c32,  f4,        c32),
+    (c32,  f8_e4m3fn, c32),
+    (c32,  f8_e5m2,   c32),
     (c32,  bf16,      np.complex64),
-    (c32,  f8_e4m3fn, np.complex64),
-    # ---- custom ints: all tiny, fit in cfloat ----
-    (bc32, i4,  np.complex64),
-    (bc32, u4,  np.complex64),
-    (bc32, i1,  np.complex64),
-    (c32,  i4,  np.complex64),
     # ---- two custom complex types ----
     (bc32, c32,  np.complex64),
     (bc32, bc32, bc32),
@@ -236,8 +260,15 @@ def test_custom_complex_vs_custom(a, b, expected):
   assert rt(b, a) == np.dtype(expected)  # must be symmetric
 
 
+@pytest.mark.parametrize("complex_t", ALL_CUSTOM_COMPLEX)
+@pytest.mark.parametrize("int_t", ALL_INTN)
+def test_custom_complex_vs_custom_int(complex_t, int_t):
+  assert rt(complex_t, int_t) == np.dtype(complex_t)
+  assert rt(int_t, complex_t) == np.dtype(complex_t)
+
+
 # ---------------------------------------------------------------------------
-# Python scalars: 0, 0.0, 0.0j  (abstract types)
+# Python scalars: 0, 0.0, 0.0j  (abstract types; value is immaterial)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.parametrize("dtype, scalar, expected", [
@@ -248,10 +279,6 @@ def test_custom_complex_vs_custom(a, b, expected):
     (f8_e4m3fn, 0.0,  f8_e4m3fn),
     (f4,        0,    f4),
     (f4,        0.0,  f4),
-    # ---- custom float + Python complex → cfloat ----
-    (bf16,      0.0j, np.complex64),
-    (f8_e4m3fn, 0.0j, np.complex64),
-    (f4,        0.0j, np.complex64),
     # ---- custom ints: a Python int defers to the int dtype, but a Python
     #      float/complex crosses the integer kind and promotes to the default
     #      float64 / complex128 (matching NumPy's built-in integers) ----
@@ -274,6 +301,12 @@ def test_custom_complex_vs_custom(a, b, expected):
 ])
 def test_python_scalars(dtype, scalar, expected):
   assert rt(dtype, scalar) == np.dtype(expected)
+
+
+@pytest.mark.parametrize("float_t", ALL_CUSTOM_FLOATS)
+def test_custom_float_vs_python_complex(float_t):
+  assert rt(float_t, 0.0j) == np.dtype(np.complex64)
+  assert rt(0.0j, float_t) == np.dtype(np.complex64)
 
 
 @pytest.mark.parametrize("int_t", ALL_INTN)

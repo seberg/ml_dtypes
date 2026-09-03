@@ -882,14 +882,23 @@ static PyArray_Descr* NPyCustomFloat_DefaultDescr(PyArray_DTypeMeta* cls) {
   return cls->singleton;
 }
 
-// True if every value of Src is exactly representable in Dst: Dst must have
-// at least as many mantissa bits (precision) and at least as much exponent
-// range as Src.
+// True if every value of Src is exactly representable in Dst.
 template <typename Src, typename Dst>
 static constexpr bool CustomFloatSafeTo() {
-  return std::numeric_limits<Dst>::digits >= std::numeric_limits<Src>::digits &&
+  return (!std::numeric_limits<Src>::is_signed ||
+          std::numeric_limits<Dst>::is_signed) &&
+         std::numeric_limits<Dst>::digits >= std::numeric_limits<Src>::digits &&
+         std::numeric_limits<Dst>::min_exponent -
+                 std::numeric_limits<Dst>::digits <=
+             std::numeric_limits<Src>::min_exponent -
+                 std::numeric_limits<Src>::digits &&
          std::numeric_limits<Dst>::max_exponent >=
-             std::numeric_limits<Src>::max_exponent;
+             std::numeric_limits<Src>::max_exponent &&
+         (!std::numeric_limits<Src>::has_infinity ||
+          std::numeric_limits<Dst>::has_infinity) &&
+         (!std::numeric_limits<Src>::has_quiet_NaN ||
+          std::numeric_limits<Dst>::has_quiet_NaN);
+         // Ignore has_signaling_NaN since NumPy doesn't use it.
 }
 
 template <typename T>
@@ -921,7 +930,7 @@ static PyArray_DTypeMeta* NPyCustomFloat_CommonDType(PyArray_DTypeMeta* cls,
       Py_INCREF(cls);
       return cls;
     case NPY_HALF:
-      if (is_bfloat16) {
+      if constexpr (!CustomFloatSafeTo<T, half>()) {
         Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_FloatDType));
         return &PyArray_FloatDType;
       }

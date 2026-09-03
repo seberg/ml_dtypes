@@ -855,6 +855,11 @@ static PyArray_DTypeMeta* NPyIntN_CommonDType(PyArray_DTypeMeta* cls,
     Py_INCREF(cls);
     return cls;
   }
+  if constexpr (std::numeric_limits<T>::is_signed) {
+    if (PyTypeNum_ISUNSIGNED(other->type_num)) {
+      return PyArray_CommonDType(&PyArray_ByteDType, other);
+    }
+  }
   if (!PyTypeNum_ISUSERDEF(other->type_num)) {
     Py_INCREF(other);
     return other;
