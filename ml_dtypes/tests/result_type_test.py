@@ -114,7 +114,7 @@ def test_custom_float_vs_custom_float(a, b, expected):
   assert rt(b, a) == np.dtype(expected)  # must be symmetric
 
 
-@pytest.mark.parametrize("a, b", itertools.combinations(ALL_CUSTOM_FLOATS, 2))
+@pytest.mark.parametrize("a, b", list(itertools.combinations(ALL_CUSTOM_FLOATS, 2)))
 def test_custom_float_commutativity(a, b):
   assert rt(a, b) == rt(b, a)
 
