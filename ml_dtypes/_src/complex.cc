@@ -1143,7 +1143,9 @@ static PyArray_DTypeMeta* NPyCustomComplex_CommonDType(
 
   switch (other->type_num) {
     // Built-in complex: our types are smaller, return other.
-    case NPY_CFLOAT: case NPY_CDOUBLE: case NPY_CLONGDOUBLE:
+    case NPY_CFLOAT:
+    case NPY_CDOUBLE:
+    case NPY_CLONGDOUBLE:
       Py_INCREF(other);
       return other;
 
@@ -1219,8 +1221,7 @@ bool RegisterComplexDtype(PyObject* numpy) {
   }
 
   PyType_Slot dtype_slots[] = {
-      {NPY_DT_legacy_descriptor_proto,
-       reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_legacy_descriptor_proto, reinterpret_cast<void*>(&descr_proto)},
       {NPY_DT_getitem,
        reinterpret_cast<void*>(NPyCustomComplex_NewStyleGetItem<T>)},
       {NPY_DT_setitem,

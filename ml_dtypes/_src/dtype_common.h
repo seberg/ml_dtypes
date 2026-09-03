@@ -76,10 +76,8 @@ struct CopyOp {
 
 template <typename Op, typename In, typename Out, bool contiguous>
 static int StridedUnaryLoop(PyArrayMethod_Context* /*context*/,
-                            char* const data[],
-                            const npy_intp dimensions[],
-                            const npy_intp strides[],
-                            NpyAuxData* /*auxdata*/) {
+                            char* const data[], const npy_intp dimensions[],
+                            const npy_intp strides[], NpyAuxData* /*auxdata*/) {
   const npy_intp n = dimensions[0];
   const char* in = data[0];
   char* out = data[1];
@@ -119,14 +117,13 @@ static int UnalignedStridedCopyLoop(PyArrayMethod_Context* /*context*/,
         static_assert(sizeof(T) == 4);  // currently only have 32bit complex
         ByteSwap16(out);
         ByteSwap16(out + 2);
-      }
-      else if constexpr (sizeof(T) == 2) {
+      } else if constexpr (sizeof(T) == 2) {
         ByteSwap16(out);
       } else if constexpr (sizeof(T) == 4) {
         ByteSwap32(out);
-      }
-      else {
-        // static assert needs to depend on T, so check sizeof(T) is single byte.
+      } else {
+        // static assert needs to depend on T, so check sizeof(T) is single
+        // byte.
         static_assert(sizeof(T) == 1);
       }
     }
@@ -174,13 +171,12 @@ static int WithinDTypeCastGetLoop(PyArrayMethod_Context* context, int aligned,
   *out_transferdata = nullptr;
   const npy_intp elsize = static_cast<npy_intp>(sizeof(T));
 
-  if (PyDataType_ISNOTSWAPPED(descrs[0]) != PyDataType_ISNOTSWAPPED(descrs[1])) {
+  if (PyDataType_ISNOTSWAPPED(descrs[0]) !=
+      PyDataType_ISNOTSWAPPED(descrs[1])) {
     *out_loop = UnalignedStridedCopyLoop<T, /* swap */ true>;
-  }
-  else if (!aligned) {
+  } else if (!aligned) {
     *out_loop = UnalignedStridedCopyLoop<T>;
-  }
-  else if (strides[0] == elsize && strides[1] == elsize) {
+  } else if (strides[0] == elsize && strides[1] == elsize) {
     *out_loop = StridedUnaryLoop<CopyOp<T>, T, T, true>;
   } else {
     *out_loop = StridedUnaryLoop<CopyOp<T>, T, T, false>;
@@ -201,8 +197,7 @@ inline int InitDTypeFromSlots(PyArray_DTypeMeta* dm, PyTypeObject* scalar_type,
   PyType_Slot self_cast_slots[] = {
       {NPY_METH_resolve_descriptors,
        reinterpret_cast<void*>(WithinDTypeCastResolve)},
-      {NPY_METH_get_loop,
-       reinterpret_cast<void*>(WithinDTypeCastGetLoop<T>)},
+      {NPY_METH_get_loop, reinterpret_cast<void*>(WithinDTypeCastGetLoop<T>)},
       {0, nullptr}};
   PyArrayMethod_Spec self_cast_spec;
   self_cast_spec.name = "within_dtype_cast";

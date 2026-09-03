@@ -889,7 +889,8 @@ static PyArray_DTypeMeta* NPyCustomFloat_CommonDType(PyArray_DTypeMeta* cls,
     Py_INCREF(cls);
     return cls;
   }
-  // Python abstract scalars defer to the concrete type. (should add complex here)
+  // Python abstract scalars defer to the concrete type. (should add complex
+  // here)
   if (other == &PyArray_PyLongDType || other == &PyArray_PyFloatDType) {
     Py_INCREF(cls);
     return cls;
@@ -898,7 +899,8 @@ static PyArray_DTypeMeta* NPyCustomFloat_CommonDType(PyArray_DTypeMeta* cls,
   constexpr bool is_bfloat16 = std::is_same_v<T, bfloat16>;
 
   if (PyTypeNum_ISINTEGER(other->type_num)) {
-    if (is_bfloat16 && (other->type_num == NPY_BYTE || other->type_num == NPY_UBYTE)) {
+    if (is_bfloat16 &&
+        (other->type_num == NPY_BYTE || other->type_num == NPY_UBYTE)) {
       Py_INCREF(cls);
       return cls;
     }
@@ -916,29 +918,35 @@ static PyArray_DTypeMeta* NPyCustomFloat_CommonDType(PyArray_DTypeMeta* cls,
         return &PyArray_FloatDType;
       }
       [[fallthrough]];
-    case NPY_FLOAT: case NPY_DOUBLE: case NPY_LONGDOUBLE:
+    case NPY_FLOAT:
+    case NPY_DOUBLE:
+    case NPY_LONGDOUBLE:
       [[fallthrough]];
-    case NPY_CFLOAT: case NPY_CDOUBLE: case NPY_CLONGDOUBLE:
+    case NPY_CFLOAT:
+    case NPY_CDOUBLE:
+    case NPY_CLONGDOUBLE:
       Py_INCREF(other);
       return other;
     default:
       break;
   }
 
-  // ---- Our own custom DTypes ----
-  // Another custom float: use compile-time safe-cast predicate to pick the
-  // wider type; fall back to float32 when neither contains the other.
-  // T is known at compile time so all CustomFloatSafeTo<T,U> calls fold away.
-#define TRY_CUSTOM_FLOAT(OtherT)                                           \
-  if (other == &CustomFloatType<OtherT>::dtype_meta) {                     \
-    if constexpr (CustomFloatSafeTo<T, OtherT>()) {                        \
-      Py_INCREF(other); return other;                                       \
-    } else if constexpr (CustomFloatSafeTo<OtherT, T>()) {                 \
-      Py_INCREF(cls); return cls;                                           \
-    } else {                                                                \
-      Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_FloatDType));          \
-      return &PyArray_FloatDType;                                           \
-    }                                                                       \
+    // ---- Our own custom DTypes ----
+    // Another custom float: use compile-time safe-cast predicate to pick the
+    // wider type; fall back to float32 when neither contains the other.
+    // T is known at compile time so all CustomFloatSafeTo<T,U> calls fold away.
+#define TRY_CUSTOM_FLOAT(OtherT)                                   \
+  if (other == &CustomFloatType<OtherT>::dtype_meta) {             \
+    if constexpr (CustomFloatSafeTo<T, OtherT>()) {                \
+      Py_INCREF(other);                                            \
+      return other;                                                \
+    } else if constexpr (CustomFloatSafeTo<OtherT, T>()) {         \
+      Py_INCREF(cls);                                              \
+      return cls;                                                  \
+    } else {                                                       \
+      Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_FloatDType)); \
+      return &PyArray_FloatDType;                                  \
+    }                                                              \
   }
   TRY_CUSTOM_FLOAT(bfloat16)
   TRY_CUSTOM_FLOAT(float8_e3m4)
@@ -1019,8 +1027,7 @@ bool RegisterFloatDtype(PyObject* numpy) {
   }
 
   PyType_Slot dtype_slots[] = {
-      {NPY_DT_legacy_descriptor_proto,
-       reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_legacy_descriptor_proto, reinterpret_cast<void*>(&descr_proto)},
       {NPY_DT_getitem,
        reinterpret_cast<void*>(NPyCustomFloat_NewStyleGetItem<T>)},
       {NPY_DT_setitem,

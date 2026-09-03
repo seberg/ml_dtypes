@@ -936,18 +936,13 @@ bool RegisterIntNDtype(PyObject* numpy) {
   }
 
   PyType_Slot dtype_slots[] = {
-      {NPY_DT_legacy_descriptor_proto,
-       reinterpret_cast<void*>(&descr_proto)},
-      {NPY_DT_getitem,
-       reinterpret_cast<void*>(NPyIntN_NewStyleGetItem<T>)},
-      {NPY_DT_setitem,
-       reinterpret_cast<void*>(NPyIntN_NewStyleSetItem<T>)},
+      {NPY_DT_legacy_descriptor_proto, reinterpret_cast<void*>(&descr_proto)},
+      {NPY_DT_getitem, reinterpret_cast<void*>(NPyIntN_NewStyleGetItem<T>)},
+      {NPY_DT_setitem, reinterpret_cast<void*>(NPyIntN_NewStyleSetItem<T>)},
       {NPY_DT_ensure_canonical,
        reinterpret_cast<void*>(NPyIntN_EnsureCanonical<T>)},
-      {NPY_DT_default_descr,
-       reinterpret_cast<void*>(NPyIntN_DefaultDescr<T>)},
-      {NPY_DT_common_dtype,
-       reinterpret_cast<void*>(NPyIntN_CommonDType<T>)},
+      {NPY_DT_default_descr, reinterpret_cast<void*>(NPyIntN_DefaultDescr<T>)},
+      {NPY_DT_common_dtype, reinterpret_cast<void*>(NPyIntN_CommonDType<T>)},
       {0, nullptr}};
   if (InitDTypeFromSlots<T>(&dm, reinterpret_cast<PyTypeObject*>(type),
                             dtype_slots) < 0) {
