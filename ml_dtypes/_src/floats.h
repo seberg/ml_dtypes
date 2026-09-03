@@ -17,6 +17,7 @@ limitations under the License.
 #define ML_DTYPES_FLOATS_H_
 
 #include <cstring>
+#include <limits>
 #include <type_traits>
 
 #include "Eigen/Core"
@@ -137,6 +138,25 @@ struct is_custom_float<T,
 
 template <typename T>
 inline constexpr bool is_custom_float_v = is_custom_float<T>::value;
+
+// True if every value of Src is exactly representable in Dst.
+// Ignore has_signaling_NaN since NumPy doesn't use it.
+template <typename Src, typename Dst>
+inline constexpr bool CustomFloatSafeTo() {
+  return (!std::numeric_limits<Src>::is_signed ||
+          std::numeric_limits<Dst>::is_signed) &&
+         std::numeric_limits<Dst>::digits >= std::numeric_limits<Src>::digits &&
+         std::numeric_limits<Dst>::min_exponent -
+                 std::numeric_limits<Dst>::digits <=
+             std::numeric_limits<Src>::min_exponent -
+                 std::numeric_limits<Src>::digits &&
+         std::numeric_limits<Dst>::max_exponent >=
+             std::numeric_limits<Src>::max_exponent &&
+         (!std::numeric_limits<Src>::has_infinity ||
+          std::numeric_limits<Dst>::has_infinity) &&
+         (!std::numeric_limits<Src>::has_quiet_NaN ||
+          std::numeric_limits<Dst>::has_quiet_NaN);
+}
 
 template <typename T>
 struct CustomFloatType {

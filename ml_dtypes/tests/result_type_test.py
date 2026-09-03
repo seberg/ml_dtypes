@@ -120,6 +120,59 @@ def test_custom_float_commutativity(a, b):
 
 
 # ---------------------------------------------------------------------------
+# can_cast(..., casting='safe') for custom float pairs
+#
+# Legacy NumPy infers safe casts for user dtypes with the same kind and
+# itemsize (see PyArray_LegacyEquivTypes), so same-sized void floats are
+# often reported safe even when semantically lossy.  Different itemsize or
+# kind (e.g. float8_e5m2 uses kind 'f') avoids that heuristic.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("a, b", [
+    (f4,        f8_e4m3fn),
+    (f6_e2m3,   f8_e4m3fn),
+])
+def test_custom_float_can_cast_safe(a, b):
+  assert np.can_cast(a, b, casting='safe')
+
+
+@pytest.mark.xfail(
+    reason="Legacy casts is incorrect as it uses kind+itemsize logic.",
+    strict=False,
+)
+@pytest.mark.parametrize("a, b", [
+    (f8_e4m3fn, bf16),
+    (f8_e3m4,   bf16),
+])
+def test_custom_float_can_cast_safe_cross_itemsize(a, b):
+  assert np.can_cast(a, b, casting='safe')
+
+
+@pytest.mark.parametrize("a, b", [
+    (f8_e5m2,     f8_e5m2fnuz),
+    (f8_e5m2fnuz, f8_e5m2),
+    (f8_e4m3fn,   f8_e5m2),
+    (bf16,        f8_e4m3fn),
+    (bf16,        f8_e5m2),
+])
+def test_custom_float_can_cast_not_safe(a, b):
+  assert not np.can_cast(a, b, casting='safe')
+
+
+@pytest.mark.xfail(
+    reason="Legacy casts is incorrect as it uses kind+itemsize logic.",
+    strict=False,
+)
+@pytest.mark.parametrize("a, b", [
+    (f8_e4m3fn, f4),
+    (f8_e4m3,   f8_e4m3fn),
+    (f8_e4m3fn, f8_e4m3),
+])
+def test_custom_float_can_cast_legacy_false_positive(a, b):
+  assert not np.can_cast(a, b, casting='safe')
+
+
+# ---------------------------------------------------------------------------
 # Custom float vs custom int  (float always dominates)
 # ---------------------------------------------------------------------------
 
