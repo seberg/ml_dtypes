@@ -1060,10 +1060,16 @@ static int NPyCustomComplex_NewStyleSetItem(PyArray_Descr* /*descr*/,
   return NPyCustomComplex_SetItem<T>(item, data, /*arr=*/nullptr);
 }
 
+// Ensure native-byte order (preserve metadata for identity for now)
 template <typename T>
 static PyArray_Descr* NPyCustomComplex_EnsureCanonical(PyArray_Descr* self) {
-  Py_INCREF(self);
-  return self;
+  if (PyDataType_ISNOTSWAPPED(self)) {
+    Py_INCREF(self);
+    return self;
+  }
+  PyArray_Descr* singleton = NPY_DTYPE(self)->singleton;
+  Py_INCREF(singleton);
+  return singleton;
 }
 
 template <typename T>

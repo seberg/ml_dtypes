@@ -1363,6 +1363,8 @@ class CustomFloatNumPyTest(parameterized.TestCase):
         np.testing.assert_equal(np.spacing(inf), np.spacing(np.float32(inf)))
 
   def testLinspace(self, float_type):
+    if float_type == float8_e8m0fnu:
+      self.skipTest("linspace evaluation starts from zero, which e8m0 lacks")
     start = np.array([0.5, 1.0], dtype=float_type)
     stop = np.array([1.0, 2.0], dtype=float_type)
     out, _ = np.linspace(
