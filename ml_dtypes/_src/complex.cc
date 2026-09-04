@@ -1092,75 +1092,67 @@ static PyArray_DTypeMeta* NPyCustomComplex_CommonDType(
     return cls;
   }
 
+  // Real component of our complex type: bfloat16 or half. Both fit in float,
+  // so any real type we cannot hold exactly widens us to complex64.
   using real_type = typename T::value_type;
-  PyArray_DTypeMeta* component;
-  if constexpr (is_custom_float_v<real_type>) {
-    component = &CustomFloatType<real_type>::dtype_meta;
-  } else {
-    component = &PyArray_HalfDType;
-  }
-
-  if (other->type_num == NPY_BOOL || PyTypeNum_ISFLOAT(other->type_num) ||
-      IsCustomFloatDType(other) || IsCustomIntDType(other)) {
-    PyArray_DTypeMeta* common = PyArray_CommonDType(component, other);
-    if (common == nullptr) {
-      return nullptr;
-    }
-    if (common == component) {
-      Py_DECREF(common);
-      Py_INCREF(cls);
-      return cls;
-    }
-
-    PyArray_DTypeMeta* result = nullptr;
-    switch (common->type_num) {
-      case NPY_FLOAT:
-        result = &PyArray_CFloatDType;
-        break;
-      case NPY_DOUBLE:
-        result = &PyArray_CDoubleDType;
-        break;
-      case NPY_LONGDOUBLE:
-        result = &PyArray_CLongDoubleDType;
-        break;
-      default:
-        break;
-    }
-    Py_DECREF(common);
-    if (result != nullptr) {
-      Py_INCREF(result);
-      return result;
-    }
-
-    // Do not introduce a custom dtype which was neither input.
-    Py_INCREF(Py_NotImplemented);
-    return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
-  }
 
   if (PyTypeNum_ISINTEGER(other->type_num)) {
+    /* Our precision is irrelevant, the integer one is higher. */
     return PyArray_CommonDType(&PyArray_CFloatDType, other);
   }
 
   switch (other->type_num) {
+    case NPY_BOOL:
+      Py_INCREF(cls);
+      return cls;
+    case NPY_HALF:
+      if constexpr (CustomFloatSafeTo<half, real_type>()) {
+        Py_INCREF(cls);
+        return cls;
+      }
+      [[fallthrough]];
+    case NPY_FLOAT:
+      Py_INCREF(&PyArray_CFloatDType);
+      return &PyArray_CFloatDType;
+    case NPY_DOUBLE:
+      Py_INCREF(&PyArray_CDoubleDType);
+      return &PyArray_CDoubleDType;
+    case NPY_LONGDOUBLE:
+      Py_INCREF(&PyArray_CLongDoubleDType);
+      return &PyArray_CLongDoubleDType;
     // Built-in complex: our types are smaller, return other.
     case NPY_CFLOAT:
     case NPY_CDOUBLE:
     case NPY_CLONGDOUBLE:
       Py_INCREF(other);
       return other;
-
     default:
       break;
   }
 
   // ---- Our own custom DTypes ----
-  // Another custom complex: both fit in cfloat.
-  if (IsCustomComplexDType(other)) {
-    if (cls->type_num < other->type_num) {
-      Py_INCREF(Py_NotImplemented);
-      return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
+  // Custom float: stay complex when our real component holds it exactly,
+  // otherwise widen to complex64.
+  if (PyArray_DTypeMeta* common =
+          CommonCustomFloatDType<real_type>(cls, other)) {
+    if (common == cls) {
+      Py_INCREF(cls);
+      return cls;
     }
-    Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_CFloatDType));
+    Py_INCREF(&PyArray_CFloatDType);
+    return &PyArray_CFloatDType;
+  }
+
+  // Custom int: every intN fits exactly in either component type.
+  if (IsCustomIntDType(other)) {
+    Py_INCREF(cls);
+    return cls;
+  }
+
+  // The other custom complex: bfloat16 and half do not contain each other,
+  // so both sides agree on complex64.
+  if (IsCustomComplexDType(other)) {
+    Py_INCREF(&PyArray_CFloatDType);
     return &PyArray_CFloatDType;
   }
 

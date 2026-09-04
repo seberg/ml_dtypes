@@ -914,7 +914,7 @@ static PyArray_DTypeMeta* NPyCustomFloat_CommonDType(PyArray_DTypeMeta* cls,
       return cls;
     case NPY_HALF:
       if constexpr (!CustomFloatSafeTo<T, half>()) {
-        Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_FloatDType));
+        Py_INCREF(&PyArray_FloatDType);
         return &PyArray_FloatDType;
       }
       [[fallthrough]];
@@ -931,36 +931,12 @@ static PyArray_DTypeMeta* NPyCustomFloat_CommonDType(PyArray_DTypeMeta* cls,
       break;
   }
 
-    // ---- Our own custom DTypes ----
-    // Another custom float: use compile-time safe-cast predicate to pick the
-    // wider type; fall back to float32 when neither contains the other.
-    // T is known at compile time so all CustomFloatSafeTo<T,U> calls fold away.
-#define TRY_CUSTOM_FLOAT(OtherT)                                   \
-  if (other == &CustomFloatType<OtherT>::dtype_meta) {             \
-    if constexpr (CustomFloatSafeTo<T, OtherT>()) {                \
-      Py_INCREF(other);                                            \
-      return other;                                                \
-    } else if constexpr (CustomFloatSafeTo<OtherT, T>()) {         \
-      Py_INCREF(cls);                                              \
-      return cls;                                                  \
-    } else {                                                       \
-      Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_FloatDType)); \
-      return &PyArray_FloatDType;                                  \
-    }                                                              \
+  // ---- Our own custom DTypes ----
+  // Another custom float: whichever contains the other, else float32.
+  if (PyArray_DTypeMeta* common = CommonCustomFloatDType<T>(cls, other)) {
+    Py_INCREF(common);
+    return common;
   }
-  TRY_CUSTOM_FLOAT(bfloat16)
-  TRY_CUSTOM_FLOAT(float8_e3m4)
-  TRY_CUSTOM_FLOAT(float8_e4m3)
-  TRY_CUSTOM_FLOAT(float8_e4m3b11fnuz)
-  TRY_CUSTOM_FLOAT(float8_e4m3fn)
-  TRY_CUSTOM_FLOAT(float8_e4m3fnuz)
-  TRY_CUSTOM_FLOAT(float8_e5m2)
-  TRY_CUSTOM_FLOAT(float8_e5m2fnuz)
-  TRY_CUSTOM_FLOAT(float6_e2m3fn)
-  TRY_CUSTOM_FLOAT(float6_e3m2fn)
-  TRY_CUSTOM_FLOAT(float4_e2m1fn)
-  TRY_CUSTOM_FLOAT(float8_e8m0fnu)
-#undef TRY_CUSTOM_FLOAT
 
   // Custom int: float dominates. NPyIntN_CommonDType returns NotImplemented
   // for user types it can't see, so we handle this side explicitly.

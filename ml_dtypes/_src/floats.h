@@ -183,20 +183,43 @@ struct CustomFloatType {
   static PyArray_DTypeMeta dtype_meta;
 };
 
-// True if `meta` is one of our custom floating-point DTypes.
-inline bool IsCustomFloatDType(const PyArray_DTypeMeta* meta) {
-  return meta == &CustomFloatType<bfloat16>::dtype_meta ||
-         meta == &CustomFloatType<float8_e3m4>::dtype_meta ||
-         meta == &CustomFloatType<float8_e4m3>::dtype_meta ||
-         meta == &CustomFloatType<float8_e4m3b11fnuz>::dtype_meta ||
-         meta == &CustomFloatType<float8_e4m3fn>::dtype_meta ||
-         meta == &CustomFloatType<float8_e4m3fnuz>::dtype_meta ||
-         meta == &CustomFloatType<float8_e5m2>::dtype_meta ||
-         meta == &CustomFloatType<float8_e5m2fnuz>::dtype_meta ||
-         meta == &CustomFloatType<float6_e2m3fn>::dtype_meta ||
-         meta == &CustomFloatType<float6_e3m2fn>::dtype_meta ||
-         meta == &CustomFloatType<float4_e2m1fn>::dtype_meta ||
-         meta == &CustomFloatType<float8_e8m0fnu>::dtype_meta;
+// Recovers the C++ type behind the runtime DType `other` by walking the type
+// list, so that the containment checks stay compile-time constants.
+template <typename T>
+inline PyArray_DTypeMeta* CommonCustomFloatDTypeImpl(
+    PyArray_DTypeMeta* /*self*/, PyArray_DTypeMeta* /*other*/) {
+  return nullptr;
+}
+
+template <typename T, typename OtherT, typename... Rest>
+inline PyArray_DTypeMeta* CommonCustomFloatDTypeImpl(PyArray_DTypeMeta* self,
+                                                     PyArray_DTypeMeta* other) {
+  if (other != &CustomFloatType<OtherT>::dtype_meta) {
+    return CommonCustomFloatDTypeImpl<T, Rest...>(self, other);
+  }
+  if constexpr (CustomFloatSafeTo<OtherT, T>()) {
+    // Checked first so equal types (both true) keep `self`. Complex relies on
+    // that: promoting bcomplex32 with bfloat16 must not return the float.
+    return self;
+  } else if constexpr (CustomFloatSafeTo<T, OtherT>()) {
+    return other;
+  } else {
+    return &PyArray_FloatDType;
+  }
+}
+
+// Promotes the statically-known float type `T` against the DType `other`.
+// Returns `self` when `other` fits in `T`, `other` when `T` fits in it, and
+// float32 when neither contains the other.  Returns nullptr when `other` is
+// not one of our float DTypes.
+// `T` can be `half`, but `other` is only checked against our custom floats.
+template <typename T>
+inline PyArray_DTypeMeta* CommonCustomFloatDType(PyArray_DTypeMeta* self,
+                                                 PyArray_DTypeMeta* other) {
+  return CommonCustomFloatDTypeImpl<
+      T, bfloat16, float8_e3m4, float8_e4m3, float8_e4m3b11fnuz, float8_e4m3fn,
+      float8_e4m3fnuz, float8_e5m2, float8_e5m2fnuz, float6_e2m3fn,
+      float6_e3m2fn, float4_e2m1fn, float8_e8m0fnu>(self, other);
 }
 
 template <typename T>

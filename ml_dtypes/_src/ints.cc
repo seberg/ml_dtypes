@@ -873,7 +873,7 @@ static PyArray_DTypeMeta* NPyIntN_CommonDType(PyArray_DTypeMeta* cls,
       return reinterpret_cast<PyArray_DTypeMeta*>(Py_NotImplemented);
     }
     // No cross-custom-int safe casts are registered; int16 contains all.
-    Py_INCREF(reinterpret_cast<PyObject*>(&PyArray_Int16DType));
+    Py_INCREF(&PyArray_Int16DType);
     return &PyArray_Int16DType;
   }
 
